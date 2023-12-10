@@ -24,7 +24,7 @@ from models import *
 parser = argparse.ArgumentParser(description='PSMNet')
 parser.add_argument('--maxdisp', type=int ,default=192,
                     help='maxium disparity')
-parser.add_argument('--model', default='stackhourglass',
+parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
 parser.add_argument('--datatype', default='2015',
                     help='datapath')
@@ -99,7 +99,7 @@ def train(imgL,imgR,disp_L):
 
         optimizer.zero_grad()
         
-        if args.model == 'stackhourglass':
+        if args.model == 'stackhourglass' or args.model == 'RTStereoNet':
             output1, output2, output3 = model(imgL,imgR)
             output1 = torch.squeeze(output1,1)
             output2 = torch.squeeze(output2,1)
