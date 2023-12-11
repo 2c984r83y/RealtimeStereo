@@ -18,15 +18,17 @@ from PIL import Image
 parser = argparse.ArgumentParser(description='PSMNet')
 parser.add_argument('--KITTI', default='2015',
                     help='KITTI version')
-parser.add_argument('--datapath', default='/media/jiaren/ImageNet/data_scene_flow_2015/testing/',
+parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/image_2/',
                     help='select model')
-parser.add_argument('--loadmodel', default='./trained/pretrained_model_KITTI2015.tar',
+# parser.add_argument('--loadmodel', default='./trained/pretrained_Kitti2015_realtime.tar',
+#                     help='loading model')
+parser.add_argument('--loadmodel', default='./finetune_300.tar',
                     help='loading model')
-parser.add_argument('--leftimg', default= './VO04_L.png',
+parser.add_argument('--leftimg',  default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/image_2/000076_10.png',
                     help='load model')
-parser.add_argument('--rightimg', default= './VO04_R.png',
-                    help='load model')                                      
-parser.add_argument('--model', default='stackhourglass',
+parser.add_argument('--rightimg', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/image_3/000076_10.png',
+                    help='load model')                             
+parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
 parser.add_argument('--maxdisp', type=int, default=192,
                     help='maxium disparity')
@@ -107,11 +109,16 @@ def main():
 
         imgL = F.pad(imgL,(0,right_pad, top_pad,0)).unsqueeze(0)
         imgR = F.pad(imgR,(0,right_pad, top_pad,0)).unsqueeze(0)
+        
 
+        pred_disp = test(imgL,imgR)
+        pred_disp = test(imgL,imgR)
+        
         start_time = time.time()
         pred_disp = test(imgL,imgR)
-        print('time = %.2f' %(time.time() - start_time))
-
+        end_time = time.time()  
+        elapsed_time = end_time - start_time
+        print(f"time cost: {elapsed_time} s")
         
         if top_pad !=0 and right_pad != 0:
             img = pred_disp[top_pad:,:-right_pad]

@@ -28,11 +28,11 @@ parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
 parser.add_argument('--datatype', default='2015',
                     help='datapath')
-parser.add_argument('--datapath', default='/media/jiaren/ImageNet/data_scene_flow_2015/training/',
+parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/training/',
                     help='datapath')
 parser.add_argument('--epochs', type=int, default=300,
                     help='number of epochs to train')
-parser.add_argument('--loadmodel', default='./trained/submission_model.tar',
+parser.add_argument('--loadmodel', default='./checkpoint_9.tar',
                     help='load model')
 parser.add_argument('--savemodel', default='./',
                     help='save model')
@@ -83,39 +83,38 @@ print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in mo
 
 optimizer = optim.Adam(model.parameters(), lr=0.1, betas=(0.9, 0.999))
 
-def train(imgL, imgR,disp_L):
-    model.train()
-    imgL   = Variable(torch.FloatTensor(imgL))
-    imgR   = Variable(torch.FloatTensor(imgR))   
-    disp_L = Variable(torch.FloatTensor(disp_L))
+def train(imgL,imgR,disp_L):
+        model.train()
+        imgL   = Variable(torch.FloatTensor(imgL))
+        imgR   = Variable(torch.FloatTensor(imgR))   
+        disp_L = Variable(torch.FloatTensor(disp_L))
 
-    if args.cuda:
-        imgL, imgR, disp_true = imgL.cuda(), imgR.cuda(), disp_L.cuda()
+        if args.cuda:
+            imgL, imgR, disp_true = imgL.cuda(), imgR.cuda(), disp_L.cuda()
 
-    #---------
-    mask = (disp_true > 0)
-    mask.detach_()
-    #----
+        #---------
+        mask = (disp_true > 0)
+        mask.detach_()
+        #----
 
-    optimizer.zero_grad()
-    
-    if args.model == 'stackhourglass' or args.model == 'RTStereoNet':
-        output1, output2, output3 = model(imgL,imgR)
-        output1 = torch.squeeze(output1,1)
-        output2 = torch.squeeze(output2,1)
-        output3 = torch.squeeze(output3,1)
-        loss = 0.5*F.smooth_l1_loss(output1[mask], disp_true[mask], size_average=True) + \
-               0.7*F.smooth_l1_loss(output2[mask], disp_true[mask], size_average=True) + \
-               F.smooth_l1_loss(output3[mask], disp_true[mask], size_average=True) 
-    elif args.model == 'basic':
-        output = model(imgL,imgR)
-        output = torch.squeeze(output3,1)
-        loss = F.smooth_l1_loss(output3[mask], disp_true[mask], size_average=True)
+        optimizer.zero_grad()
+        
+        if args.model == 'stackhourglass'or args.model == 'RTStereoNet':
+            output1, output2, output3 = model(imgL,imgR)
+            output1 = torch.squeeze(output1,1)
+            output2 = torch.squeeze(output2,1)
+            output3 = torch.squeeze(output3,1)
+            loss = 0.5*F.smooth_l1_loss(output1[mask], disp_true[mask], size_average=True) + 0.7*F.smooth_l1_loss(output2[mask], disp_true[mask], size_average=True) + F.smooth_l1_loss(output3[mask], disp_true[mask], size_average=True) 
+        elif args.model == 'basic':
+            output = model(imgL,imgR)
+            output = torch.squeeze(output3,1)
+            loss = F.smooth_l1_loss(output3[mask], disp_true[mask], size_average=True)
 
-    loss.backward()
-    optimizer.step()
+        loss.backward()
+        optimizer.step()
 
-    return loss.data[0]
+        # return loss.data[0]
+        return loss.data
 
 def test(imgL,imgR,disp_true):
         model.eval()
@@ -126,16 +125,29 @@ def test(imgL,imgR,disp_true):
 
         with torch.no_grad():
             output3 = model(imgL,imgR)
-
+        # fix the bug of output3 format
+        # https://github.com/JiaRenChang/PSMNet/issues/226    
+        # https://github.com/JiaRenChang/PSMNet/issues/230
+        # https://github.com/JiaRenChang/PSMNet/issues/218
+            
+        output3 = torch.squeeze(output3,1)
+        
         pred_disp = output3.data.cpu()
 
         #computing 3-px error#
+        # true_disp = copy.deepcopy(disp_true)
+        # index = np.argwhere(true_disp>0)
+        # disp_true[index[0][:], index[1][:], index[2][:]] = np.abs(true_disp[index[0][:], index[1][:], index[2][:]]-pred_disp[index[0][:], index[1][:], index[2][:]])
+        # correct = (disp_true[index[0][:], index[1][:], index[2][:]] < 3)|(disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[index[0][:], index[1][:], index[2][:]]*0.05)      
+        # torch.cuda.empty_cache()
         true_disp = copy.deepcopy(disp_true)
-        index = np.argwhere(true_disp>0)
-        disp_true[index[0][:], index[1][:], index[2][:]] = np.abs(true_disp[index[0][:], index[1][:], index[2][:]]-pred_disp[index[0][:], index[1][:], index[2][:]])
-        correct = (disp_true[index[0][:], index[1][:], index[2][:]] < 3)|(disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[index[0][:], index[1][:], index[2][:]]*0.05)      
+        index = np.argwhere(true_disp > 0)
+        disp_true[index[0][:], index[1][:], index[2][:]] = np.abs(
+            true_disp[index[0][:], index[1][:], index[2][:]] - pred_disp[index[0][:], index[1][:], index[2][:]])
+        correct = (disp_true[index[0][:], index[1][:], index[2][:]] < 3) | (
+                    disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[
+                index[0][:], index[1][:], index[2][:]] * 0.05)
         torch.cuda.empty_cache()
-
         return (float(torch.sum(correct))/float(len(index[0])))
 
 def adjust_learning_rate(optimizer, epoch):
@@ -169,17 +181,17 @@ def main():
     
             ## Test ##
 
-    for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
-        test_loss = test(imgL,imgR, disp_L)
-        print('Iter %d 3-px Accuracy in val = %.3f' %(batch_idx, test_loss*100))
-        total_test_loss += test_loss
+    # for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
+    #     test_loss = test(imgL,imgR, disp_L)
+    #     print('Iter %d 3-px Accuracy in val = %.3f' %(batch_idx, test_loss*100))
+    #     total_test_loss += test_loss
 
 
-    print('epoch %d total 3-px Accuracy in val = %.3f' %(epoch, total_test_loss/len(TestImgLoader)*100))
-    if total_test_loss/len(TestImgLoader)*100 > max_acc:
-        max_acc = total_test_loss/len(TestImgLoader)*100
-        max_epo = epoch
-    print('MAX epoch %d total test Accuracy = %.3f' %(max_epo, max_acc))
+    # print('epoch %d total 3-px Accuracy in val = %.3f' %(epoch, total_test_loss/len(TestImgLoader)*100))
+    # if total_test_loss/len(TestImgLoader)*100 > max_acc:
+    #     max_acc = total_test_loss/len(TestImgLoader)*100
+    #     max_epo = epoch
+    # print('MAX epoch %d total test Accuracy = %.3f' %(max_epo, max_acc))
 
     #SAVE
     savefilename = args.savemodel+'finetune_'+str(epoch)+'.tar'
@@ -187,7 +199,7 @@ def main():
             'epoch': epoch,
             'state_dict': model.state_dict(),
             'train_loss': total_train_loss/len(TrainImgLoader),
-            'Accuracy': total_test_loss/len(TestImgLoader)*100,
+            # 'Accuracy': total_test_loss/len(TestImgLoader)*100,
         }, savefilename)
     
     print('full finetune time = %.2f HR' %((time.time() - start_full_time)/3600))

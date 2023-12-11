@@ -15,9 +15,9 @@ from PIL import Image
 parser = argparse.ArgumentParser(description='PSMNet')
 parser.add_argument('--KITTI', default='2015',
                     help='KITTI version')
-parser.add_argument('--datapath', default='/media/jiaren/ImageNet/data_scene_flow_2015/testing/',
+parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/',
                     help='select model')
-parser.add_argument('--loadmodel', default='./trained/pretrained_model_KITTI2015.tar',
+parser.add_argument('--loadmodel', default='./trained/pretrained_Kitti2015_realtime.tar',
                     help='loading model')
 parser.add_argument('--model', default='stackhourglass',
                     help='select model')
@@ -110,8 +110,12 @@ def main():
 
         img = (img*256).astype('uint16')
         img = Image.fromarray(img)
-        img.save(test_left_img[inx].split('/')[-1])
-
+        # 保存在 output 文件夹下
+        
+        # img.save(test_left_img[inx].split('/')[-1])
+        img_name = test_left_img[inx].split('/')[-1]
+        img_path = os.path.join('./output', img_name) # 拼接图片的路径和名称
+        img.save(img_path) # 保存图片到output文件夹中
 
 if __name__ == '__main__':
     main()

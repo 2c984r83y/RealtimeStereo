@@ -19,7 +19,7 @@ parser.add_argument('--maxdisp', type=int ,default=192,
                     help='maxium disparity')
 parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
-parser.add_argument('--datapath', default='/media/jiaren/ImageNet/SceneFlowData/',
+parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/sceneflow/',
                     help='datapath')
 parser.add_argument('--epochs', type=int, default=10,
                     help='number of epochs to train')
@@ -72,36 +72,33 @@ print('Number of model parameters: {}'.format(sum([p.data.nelement() for p in mo
 
 optimizer = optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), weight_decay=1e-4)
 
-def train(imgL, imgR, disp_L):
-    model.train()
+def train(imgL,imgR, disp_L):
+        model.train()
 
-    if args.cuda:
-        imgL, imgR, disp_true = imgL.cuda(), imgR.cuda(), disp_L.cuda()
+        if args.cuda:
+            imgL, imgR, disp_true = imgL.cuda(), imgR.cuda(), disp_L.cuda()
 
-    #---------
-    mask = disp_true < args.maxdisp
-    mask.detach_()
-    #----
+       #---------
+        mask = disp_true < args.maxdisp
+        mask.detach_()
+        #----
+        optimizer.zero_grad()
+        
+        if args.model == 'stackhourglass' or args.model == 'RTStereoNet':
+            output1, output2, output3 = model(imgL,imgR)
+            output1 = torch.squeeze(output1,1)
+            output2 = torch.squeeze(output2,1)
+            output3 = torch.squeeze(output3,1)
+            loss = 0.25*F.smooth_l1_loss(output1[mask], disp_true[mask], size_average=True) + 0.5*F.smooth_l1_loss(output2[mask], disp_true[mask], size_average=True) + F.smooth_l1_loss(output3[mask], disp_true[mask], size_average=True) 
+        elif args.model == 'basic':
+            output = model(imgL,imgR)
+            output = torch.squeeze(output,1)
+            loss = F.smooth_l1_loss(output[mask], disp_true[mask], size_average=True)
 
-    optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-    if args.model == 'stackhourglass' or args.model == 'RTStereoNet':
-        output1, output2, output3 = model(imgL,imgR)
-        output1 = torch.squeeze(output1,1)
-        output2 = torch.squeeze(output2,1)
-        output3 = torch.squeeze(output3,1)
-        loss = 0.25*F.smooth_l1_loss(output1[mask], disp_true[mask], size_average=True) + \
-               0.5*F.smooth_l1_loss(output2[mask], disp_true[mask], size_average=True) + \
-               F.smooth_l1_loss(output3[mask], disp_true[mask], size_average=True) 
-    elif args.model == 'basic':
-        output = model(imgL,imgR)
-        output = torch.squeeze(output,1)
-        loss = F.smooth_l1_loss(output[mask], disp_true[mask], size_average=True)
-
-    loss.backward()
-    optimizer.step()
-
-    return loss.data
+        return loss.data
 
 def test(imgL,imgR,disp_true):
 
@@ -166,14 +163,14 @@ def main():
 	     loss = train(imgL_crop,imgR_crop, disp_crop_L)
 	     print('Iter %d training loss = %.3f , time = %.2f' %(batch_idx, loss, time.time() - start_time))
 	     total_train_loss += loss
-	   print('epoch %d total training loss = %.3f' %(epoch, total_train_loss/len(TrainImgLoader)))
+	   print('epoch %d total training loss = %.3f' %(epoch, total_train_loss/(1e-8+len(TrainImgLoader))))
 
 	   #SAVE
 	   savefilename = args.savemodel+'/checkpoint_'+str(epoch)+'.tar'
 	   torch.save({
 		    'epoch': epoch,
 		    'state_dict': model.state_dict(),
-                    'train_loss': total_train_loss/len(TrainImgLoader),
+                    'train_loss': total_train_loss/(1e-8+len(TrainImgLoader)),
 		}, savefilename)
 
 	print('full training time = %.2f HR' %((time.time() - start_full_time)/3600))
@@ -184,13 +181,13 @@ def main():
 	       test_loss = test(imgL,imgR, disp_L)
 	       print('Iter %d test loss = %.3f' %(batch_idx, test_loss))
 	       total_test_loss += test_loss
-
-	print('total test loss = %.3f' %(total_test_loss/len(TestImgLoader)))
+    
+	print('total test loss = %.3f' %(total_test_loss/(len(TestImgLoader)+1e-8)))
 	#----------------------------------------------------------------------------------
 	#SAVE test information
 	savefilename = args.savemodel+'testinformation.tar'
 	torch.save({
-		    'test_loss': total_test_loss/len(TestImgLoader),
+		    'test_loss': total_test_loss/(1e-8+len(TestImgLoader)),
 		}, savefilename)
 
 
