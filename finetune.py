@@ -135,11 +135,6 @@ def test(imgL,imgR,disp_true):
         pred_disp = output3.data.cpu()
 
         #computing 3-px error#
-        # true_disp = copy.deepcopy(disp_true)
-        # index = np.argwhere(true_disp>0)
-        # disp_true[index[0][:], index[1][:], index[2][:]] = np.abs(true_disp[index[0][:], index[1][:], index[2][:]]-pred_disp[index[0][:], index[1][:], index[2][:]])
-        # correct = (disp_true[index[0][:], index[1][:], index[2][:]] < 3)|(disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[index[0][:], index[1][:], index[2][:]]*0.05)      
-        # torch.cuda.empty_cache()
         true_disp = copy.deepcopy(disp_true)
         index = np.argwhere(true_disp > 0)
         disp_true[index[0][:], index[1][:], index[2][:]] = np.abs(
@@ -179,19 +174,19 @@ def main():
         total_train_loss += loss
     print('epoch %d total training loss = %.3f' %(epoch, total_train_loss/len(TrainImgLoader)))
     
-            ## Test ##
+    ## Test ##
 
-    # for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
-    #     test_loss = test(imgL,imgR, disp_L)
-    #     print('Iter %d 3-px Accuracy in val = %.3f' %(batch_idx, test_loss*100))
-    #     total_test_loss += test_loss
+    for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
+        test_loss = test(imgL,imgR, disp_L)
+        print('Iter %d 3-px Accuracy in val = %.3f' %(batch_idx, test_loss*100))
+        total_test_loss += test_loss
 
 
-    # print('epoch %d total 3-px Accuracy in val = %.3f' %(epoch, total_test_loss/len(TestImgLoader)*100))
-    # if total_test_loss/len(TestImgLoader)*100 > max_acc:
-    #     max_acc = total_test_loss/len(TestImgLoader)*100
-    #     max_epo = epoch
-    # print('MAX epoch %d total test Accuracy = %.3f' %(max_epo, max_acc))
+    print('epoch %d total 3-px Accuracy in val = %.3f' %(epoch, total_test_loss/len(TestImgLoader)*100))
+    if total_test_loss/len(TestImgLoader)*100 > max_acc:
+        max_acc = total_test_loss/len(TestImgLoader)*100
+        max_epo = epoch
+    print('MAX epoch %d total test Accuracy = %.3f' %(max_epo, max_acc))
 
     #SAVE
     savefilename = args.savemodel+'finetune_'+str(epoch)+'.tar'
