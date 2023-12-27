@@ -176,6 +176,7 @@ def main():
     print('full training time = %.2f HR' %((time.time() - start_full_time)/3600))
 
     #------------- TEST ------------------------------------------------------------
+    #!数据集缺失， 无法测试
     total_test_loss = 0
     for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
         test_loss = test(imgL,imgR, disp_L)
