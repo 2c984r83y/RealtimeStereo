@@ -6,6 +6,8 @@ import torchvision.transforms as transforms
 import random
 from PIL import Image, ImageOps
 import numpy as np
+import sys
+sys.path.append("/disk2/users/M22_zhaoqinghao/RealtimeStereo/dataloader")
 import preprocess 
 
 IMG_EXTENSIONS = [
@@ -71,7 +73,7 @@ class myImageFloder(data.Dataset):
            dataL = dataL.crop((w-1232, h-368, w, h))
            dataL = np.ascontiguousarray(dataL,dtype=np.float32)/256
 
-           processed = preprocess.get_transform(augment=False)  
+           processed = preprocess.get_transform(augment=False)
            left_img       = processed(left_img)
            right_img      = processed(right_img)
 

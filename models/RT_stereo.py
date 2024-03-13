@@ -42,8 +42,13 @@ class featexchange(nn.Module):
 
     def forward(self, x2, x4, x8, attention):
 
-        A = torch.split(attention,[4,8,20],dim=1)
-
+        A = torch.split(attention,[4,8,20],dim=1)   # 在第二维度上分割为4,8,20的三个块
+        '''
+        out_s1 = self.firstconv(x)  # 1/4, 4 channels
+        out_s2 = self.stage2(out_s1)# 1/8, 8 channels
+        out_s3 = self.stage3(out_s2)# 1/16, 20 channels
+        attention = self.stage4(out_s3)# 1/16, 32 channels
+        '''
         x4tox2 = self.upconv4(F.upsample(x4, (x2.size()[2],x2.size()[3])))
         x8tox2 = self.upconv8(F.upsample(x8, (x2.size()[2],x2.size()[3])))
         fusx2  = x2 + x4tox2 + x8tox2
@@ -89,25 +94,25 @@ class feature_extraction(nn.Module):
                                     nn.ReLU(),
 				                    nn.Conv2d(20, 20, 1, 1, 0, bias=False),
                                     convbn(20, 20, 3, 1, 1, 1,20)) #1/16
-                
+
         self.stage4 = nn.Sequential(nn.ReLU(),
                                     nn.AdaptiveAvgPool2d(1),
                                     nn.Conv2d(20, 10, 1, 1, 0, bias=True),
                                     nn.ReLU(),
                                     nn.Conv2d(10, 32, 1, 1, 0, bias=True),
                                     nn.Sigmoid(),
-                                    ) 
+                                    )
         
         self.fusion = featexchange()
         
 
     def forward(self, x):
-        #stage 1# 1x
-        out_s1 = self.firstconv(x)
-        out_s2 = self.stage2(out_s1) 
-        out_s3 = self.stage3(out_s2)        
-        attention = self.stage4(out_s3)        
-        out_s1, out_s2, out_s3 = self.fusion(out_s1, out_s2, out_s3, attention)          
+        # Fig.3.  1# 1x
+        out_s1 = self.firstconv(x)  # 1/4, 4 channels, [B, C, H, W]
+        out_s2 = self.stage2(out_s1)# 1/8, 8 channels
+        out_s3 = self.stage3(out_s2)# 1/16, 20 channels
+        attention = self.stage4(out_s3)# 1/16, 32 channels
+        out_s1, out_s2, out_s3 = self.fusion(out_s1, out_s2, out_s3, attention)
         return [out_s3, out_s2, out_s1]
 
 def batch_relu_conv3d(in_planes, out_planes, kernel_size=3, stride=1, pad=1, bn3d=True):
@@ -215,10 +220,12 @@ class RTStereoNet(nn.Module):
         feats_l = self.feature_extraction(left)
         feats_r = self.feature_extraction(right)
         pred = []
+        # Fig.1. from stage 0 to stage 2
         for scale in range(len(feats_l)):
             if scale > 0:
                 wflow = F.upsample(pred[scale-1], (feats_l[scale].size(2), feats_l[scale].size(3)),
                                    mode='bilinear') * feats_l[scale].size(2) / img_size[2]
+                # wflow 的 residual
                 cost = self._build_volume_2d3(feats_l[scale], feats_r[scale], 3, wflow, stride=1)
             else:
                 cost = self._build_volume_2d(feats_l[scale], feats_r[scale], 12, stride=1)
@@ -232,6 +239,7 @@ class RTStereoNet(nn.Module):
                 disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
                 pred.append(disp_up)
             else:
+                # 残差, 所以范围是-2到3
                 pred_low_res = disparityregression2(-2, 3, stride=1)(F.softmax(cost, dim=1))
                 pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2) 
                 disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')

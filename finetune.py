@@ -28,7 +28,7 @@ parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
 parser.add_argument('--datatype', default='2015',
                     help='datapath')
-parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/training/',
+parser.add_argument('--datapath', default='/home/zhaoqinghao/dataset/KITTI_2015/training/',
                     help='datapath')
 parser.add_argument('--epochs', type=int, default=300,
                     help='number of epochs to train')
@@ -129,21 +129,35 @@ def test(imgL,imgR,disp_true):
         # https://github.com/JiaRenChang/PSMNet/issues/226    
         # https://github.com/JiaRenChang/PSMNet/issues/230
         # https://github.com/JiaRenChang/PSMNet/issues/218
-            
+        
+        # print(output3.shape)
+        # print(disp_true.shape)
+        
         output3 = torch.squeeze(output3,1)
         
         pred_disp = output3.data.cpu()
-
+        # print(output3.shape)
+        # print(disp_true.shape)
+        
         #computing 3-px error#
         true_disp = copy.deepcopy(disp_true)
         index = np.argwhere(true_disp > 0)
         disp_true[index[0][:], index[1][:], index[2][:]] = np.abs(
             true_disp[index[0][:], index[1][:], index[2][:]] - pred_disp[index[0][:], index[1][:], index[2][:]])
-        correct = (disp_true[index[0][:], index[1][:], index[2][:]] < 3) | (
+        correct_1px = (disp_true[index[0][:], index[1][:], index[2][:]] < 1) | (
+                    disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[
+                index[0][:], index[1][:], index[2][:]] * 0.05)
+        correct_2px = (disp_true[index[0][:], index[1][:], index[2][:]] < 2) | (
+                    disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[
+                index[0][:], index[1][:], index[2][:]] * 0.05)
+        correct_3px = (disp_true[index[0][:], index[1][:], index[2][:]] < 3) | (
                     disp_true[index[0][:], index[1][:], index[2][:]] < true_disp[
                 index[0][:], index[1][:], index[2][:]] * 0.05)
         torch.cuda.empty_cache()
-        return (float(torch.sum(correct))/float(len(index[0])))
+        acc_1px = (float(torch.sum(correct_1px)) / float(len(index[0])))
+        acc_2px = (float(torch.sum(correct_2px)) / float(len(index[0])))
+        acc_3px = (float(torch.sum(correct_3px))/float(len(index[0])))
+        return acc_1px,acc_2px,acc_3px
 
 def adjust_learning_rate(optimizer, epoch):
     if epoch <= 200:
@@ -160,24 +174,27 @@ def main():
     max_epo=0
     start_full_time = time.time()
 
-    for epoch in range(1, args.epochs+1):
-        total_train_loss = 0
-        total_test_loss = 0
-        adjust_learning_rate(optimizer,epoch)
+    # for epoch in range(1, args.epochs+1):
+    #     total_train_loss = 0
+    #     total_test_loss = 0
+    #     adjust_learning_rate(optimizer,epoch)
         
-            ## training ##
-        for batch_idx, (imgL_crop, imgR_crop, disp_crop_L) in enumerate(TrainImgLoader):
-            start_time = time.time() 
+    #         ## training ##
+    #     for batch_idx, (imgL_crop, imgR_crop, disp_crop_L) in enumerate(TrainImgLoader):
+    #         start_time = time.time() 
 
-            loss = train(imgL_crop,imgR_crop, disp_crop_L)
-        print('Iter %d training loss = %.3f , time = %.2f' %(batch_idx, loss, time.time() - start_time))
-        total_train_loss += loss
-    print('epoch %d total training loss = %.3f' %(epoch, total_train_loss/len(TrainImgLoader)))
+    #         loss = train(imgL_crop,imgR_crop, disp_crop_L)
+    #     print('Iter %d training loss = %.3f , time = %.2f' %(batch_idx, loss, time.time() - start_time))
+    #     total_train_loss += loss
+    # print('epoch %d total training loss = %.3f' %(epoch, total_train_loss/len(TrainImgLoader)))
     
     ## Test ##
-
+    epoch = 1
+    total_test_loss = 0
     for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
-        test_loss = test(imgL,imgR, disp_L)
+        test_loss_1px,test_loss_2px,test_loss = test(imgL,imgR, disp_L)
+        print('Iter %d 1-px Accuracy in val = %.3f' %(batch_idx, test_loss_1px*100))
+        print('Iter %d 2-px Accuracy in val = %.3f' %(batch_idx, test_loss_2px*100))
         print('Iter %d 3-px Accuracy in val = %.3f' %(batch_idx, test_loss*100))
         total_test_loss += test_loss
 
