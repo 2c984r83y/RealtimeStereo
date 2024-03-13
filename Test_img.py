@@ -18,15 +18,15 @@ from PIL import Image
 parser = argparse.ArgumentParser(description='PSMNet')
 parser.add_argument('--KITTI', default='2015',
                     help='KITTI version')
-parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/image_2/',
+parser.add_argument('--datapath', default='/home/zhaoqinghao/dataset/KITTI_2015/testing/image_2/',
                     help='select model')
 # parser.add_argument('--loadmodel', default='./trained/pretrained_Kitti2015_realtime.tar',
 #                     help='loading model')
 parser.add_argument('--loadmodel', default='./finetune_300.tar',
                     help='loading model')
-parser.add_argument('--leftimg',  default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/image_2/000076_10.png',
+parser.add_argument('--leftimg',  default='/home/zhaoqinghao/dataset/KITTI_2015/testing/image_2/000076_10.png',
                     help='load model')
-parser.add_argument('--rightimg', default='/disk2/users/M22_zhaoqinghao/dataset/KITTI_2015/testing/image_3/000076_10.png',
+parser.add_argument('--rightimg', default='/home/zhaoqinghao/dataset/KITTI_2015/testing/image_3/000076_10.png',
                     help='load model')                             
 parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
@@ -69,7 +69,7 @@ def test(imgL,imgR):
 
         if args.cuda:
            imgL = imgL.cuda()
-           imgR = imgR.cuda()     
+           imgR = imgR.cuda()
 
         with torch.no_grad():
             disp = model(imgL,imgR)

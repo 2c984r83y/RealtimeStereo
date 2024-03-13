@@ -174,35 +174,39 @@ class RTStereoNet(nn.Module):
         yy = torch.arange(0, H).view(-1, 1).repeat(1, W)
         xx = xx.view(1, 1, H, W).repeat(B, 1, 1, 1)
         yy = yy.view(1, 1, H, W).repeat(B, 1, 1, 1)
-        grid = torch.cat((xx, yy), 1).float()
+        grid = torch.cat((xx, yy), 1).float()   # [B, 2, H, W]
 
         if x.is_cuda:
             vgrid = grid.cuda()
         #vgrid = grid
-        vgrid[:,:1,:,:] = vgrid[:,:1,:,:] - disp
+        vgrid[:,:1,:,:] = vgrid[:,:1,:,:] - disp    # 第二维第一个, 也就是xx, 减去disp
 
         # scale grid to [-1,1]
         vgrid[:, 0, :, :] = 2.0 * vgrid[:, 0, :, :] / max(W - 1, 1) - 1.0
         vgrid[:, 1, :, :] = 2.0 * vgrid[:, 1, :, :] / max(H - 1, 1) - 1.0
-
-        vgrid = vgrid.permute(0, 2, 3, 1)
+        #! 这里实现了什么? 与BGNet的区别是什么?
+        vgrid = vgrid.permute(0, 2, 3, 1)   # [B, H, W, 2]
         output = nn.functional.grid_sample(x, vgrid)
         return output
 
 
     def _build_volume_2d(self, feat_l, feat_r, maxdisp, stride=1):
         assert maxdisp % stride == 0  # Assume maxdisp is multiple of stride
-        b,c,h,w = feat_l.size()
+        b, _, h, w = feat_l.size()
         cost = torch.zeros(b, 1, maxdisp//stride, h, w).cuda().requires_grad_(False)
         for i in range(0, maxdisp, stride):
             if i > 0:
+                # i: 表示选择从索引 i 开始到最后的所有元素, 左图的右半边
+                # :-i 表示选择从第一列开始到倒数第 i 列的所有元素, 右图的左半边
+                # 物体在右视图中的位置总是在左视图中的位置的左侧或者相同位置
+                # 左图的x坐标更大, 右图的x坐标更小
                 cost[:, :, i//stride, :, i:] = torch.norm(feat_l[:, :, :, i:] - feat_r[:, :, :, :-i], p=1, dim = 1,keepdim=True)
             else:
-                cost[:, :, i//stride, :, i:] = torch.norm(feat_l[:, :, :, :] - feat_r[:, :, :, :], p=1,  dim =1,keepdim=True)
+                cost[:, :, i//stride, :, i:] = torch.norm(feat_l[:, :, :, :] - feat_r[:, :, :, :], p=1,  dim =1,keepdim=True)   # L1 Norm
         return cost.contiguous()
-
+ 
     def _build_volume_2d3(self, feat_l, feat_r, maxdisp, disp, stride=1):
-        b,c,h,w = feat_l.size()
+        b, c, h, w = feat_l.size()
         batch_disp = disp[:,None,:,:,:].repeat(1, maxdisp*2-1, 1, 1, 1).view(-1,1,h,w)
         temp_array = np.tile(np.array(range(-maxdisp + 1, maxdisp)), b) * stride
         batch_shift = torch.Tensor(np.reshape(temp_array, [len(temp_array), 1, 1, 1])).cuda().requires_grad_(False)
@@ -210,7 +214,7 @@ class RTStereoNet(nn.Module):
         batch_feat_l = feat_l[:,None,:,:,:].repeat(1,maxdisp*2-1, 1, 1, 1).view(-1,c,h,w)
         batch_feat_r = feat_r[:,None,:,:,:].repeat(1,maxdisp*2-1, 1, 1, 1).view(-1,c,h,w)
         cost = torch.norm(batch_feat_l - self.warp(batch_feat_r, batch_disp), 1, 1,keepdim=True)
-        cost = cost.view(b,1 ,-1, h, w).contiguous()
+        cost = cost.view(b, 1 ,-1, h, w).contiguous()
         return cost
 
     def forward(self, left, right):
@@ -228,10 +232,10 @@ class RTStereoNet(nn.Module):
                 # wflow 的 residual
                 cost = self._build_volume_2d3(feats_l[scale], feats_r[scale], 3, wflow, stride=1)
             else:
-                cost = self._build_volume_2d(feats_l[scale], feats_r[scale], 12, stride=1)
+                cost = self._build_volume_2d(feats_l[scale], feats_r[scale], 12, stride=1)  # 
 
             #cost = torch.unsqueeze(cost, 1)
-            cost = self.volume_postprocess[scale](cost)
+            cost = self.volume_postprocess[scale](cost) # 3D conv
             cost = cost.squeeze(1)
             if scale == 0:
                 pred_low_res = disparityregression2(0, 12)(F.softmax(cost, dim=1))
