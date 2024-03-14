@@ -111,8 +111,8 @@ def main():
         imgR = F.pad(imgR,(0,right_pad, top_pad,0)).unsqueeze(0)
         
 
-        pred_disp = test(imgL,imgR)
-        pred_disp = test(imgL,imgR)
+        # pred_disp = test(imgL,imgR)
+        # pred_disp = test(imgL,imgR)
         
         start_time = time.time()
         pred_disp = test(imgL,imgR)

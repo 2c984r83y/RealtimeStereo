@@ -232,8 +232,16 @@ class RTStereoNet(nn.Module):
         # Fig.1. from stage 0 to stage 2
         for scale in range(len(feats_l)):
             if scale > 0:
-                wflow = F.upsample(pred[scale - 1], (feats_l[scale].size(2), feats_l[scale].size(3)),
+                print("stage",scale)
+                print(pred[scale - 1].size())
+                print(feats_l[scale].size(2))
+                print(feats_l[scale].size(3))
+                #! nn.functional.upsample is deprecated. Use nn.functional.interpolate instead
+                # wflow = F.upsample(pred[scale - 1], (feats_l[scale].size(2), feats_l[scale].size(3)),
+                #     mode='bilinear') * feats_l[scale].size(2) / img_size[2]
+                wflow = F.interpolate(pred[scale - 1], (feats_l[scale].size(2), feats_l[scale].size(3)),
                                    mode='bilinear') * feats_l[scale].size(2) / img_size[2]
+                # wflow = pred[scale - 1] * feats_l[scale].size(2) / img_size[2]
                 # wflow 的 residual
                 cost = self._build_volume_2d3(feats_l[scale], feats_r[scale], 3, wflow, stride=1)
             else:
@@ -243,20 +251,25 @@ class RTStereoNet(nn.Module):
             cost = self.volume_postprocess[scale](cost)  # 3D conv
             cost = cost.squeeze(1)
             if scale == 0:
-                pred_low_res = disparityregression2(0, 12)(F.softmax(cost, dim=1))  # (b, 12, h, w)
-                pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)    # size
-                disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
+                pred_low_res = disparityregression2(0, 12)(F.softmax(cost, dim=1))  # (N, 12, h, w)
+                pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)    # ?scale to original size, why only x?
+                print("stage 0:")
+                print(pred_low_res.size())
+                # disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
+                disp_up = F.interpolate(pred_low_res, (img_size[2], img_size[3]), mode='bilinear') # (N, 12, H, W)
+                print(disp_up.size())
                 pred.append(disp_up)
             else:
                 # 残差, 所以范围是-2到3
                 pred_low_res = disparityregression2(-2, 3, stride=1)(F.softmax(cost, dim=1))
                 pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)
-                disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
+                # disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
+                disp_up = F.interpolate(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
                 pred.append(disp_up + pred[scale - 1])  #
         if self.training:
             return pred[0], pred[1], pred[2]
         else:
-            return pred[-1]
+            return pred[-1] # only return the highest resolution
 
 
 class disparityregression2(nn.Module):
