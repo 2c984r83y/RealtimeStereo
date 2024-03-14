@@ -244,7 +244,7 @@ class RTStereoNet(nn.Module):
             cost = cost.squeeze(1)
             if scale == 0:
                 pred_low_res = disparityregression2(0, 12)(F.softmax(cost, dim=1))  # (b, 12, h, w)
-                pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)
+                pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)    # size
                 disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
                 pred.append(disp_up)
             else:
