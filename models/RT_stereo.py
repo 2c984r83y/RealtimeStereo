@@ -232,10 +232,10 @@ class RTStereoNet(nn.Module):
         # Fig.1. from stage 0 to stage 2
         for scale in range(len(feats_l)):
             if scale > 0:
-                print("stage",scale)
-                print(pred[scale - 1].size())
-                print(feats_l[scale].size(2))
-                print(feats_l[scale].size(3))
+                # print("stage",scale)
+                # print(pred[scale - 1].size())
+                # print(feats_l[scale].size(2))
+                # print(feats_l[scale].size(3))
                 #! nn.functional.upsample is deprecated. Use nn.functional.interpolate instead
                 # wflow = F.upsample(pred[scale - 1], (feats_l[scale].size(2), feats_l[scale].size(3)),
                 #     mode='bilinear') * feats_l[scale].size(2) / img_size[2]
@@ -253,11 +253,11 @@ class RTStereoNet(nn.Module):
             if scale == 0:
                 pred_low_res = disparityregression2(0, 12)(F.softmax(cost, dim=1))  # (N, 12, h, w)
                 pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)    # ?scale to original size, why only x?
-                print("stage 0:")
-                print(pred_low_res.size())
+                # print("stage 0:")
+                # print(pred_low_res.size())
                 # disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
                 disp_up = F.interpolate(pred_low_res, (img_size[2], img_size[3]), mode='bilinear') # (N, 12, H, W)
-                print(disp_up.size())
+                # print(disp_up.size())
                 pred.append(disp_up)
             else:
                 # 残差, 所以范围是-2到3
