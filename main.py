@@ -19,7 +19,7 @@ parser.add_argument('--maxdisp', type=int ,default=192,
                     help='maxium disparity')
 parser.add_argument('--model', default='RTStereoNet',
                     help='select model')
-parser.add_argument('--datapath', default='/disk2/users/M22_zhaoqinghao/dataset/sceneflow/',
+parser.add_argument('--datapath', default='/home/zhaoqinghao/dataset/sceneflow/',
                     help='datapath')
 parser.add_argument('--epochs', type=int, default=10,
                     help='number of epochs to train')

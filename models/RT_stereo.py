@@ -102,9 +102,9 @@ class feature_extraction(nn.Module):
                                     nn.Conv2d(20, 10, 1, 1, 0, bias=True),
                                     nn.ReLU(),
                                     nn.Conv2d(10, 32, 1, 1, 0, bias=True),
+                                    # MultiheadSelfAttention(32, 4),
                                     nn.Sigmoid(),
                                     )
-
         self.fusion = featexchange()
 
     def forward(self, x):
@@ -112,6 +112,7 @@ class feature_extraction(nn.Module):
         out_s1 = self.firstconv(x)  # 1/4, 4 channels, [B, C, H, W]
         out_s2 = self.stage2(out_s1)  # 1/8, 8 channels
         out_s3 = self.stage3(out_s2)  # 1/16, 20 channels
+        # print(out_s3.size())
         attention = self.stage4(out_s3)  # 1/16, 32 channels
         out_s1, out_s2, out_s3 = self.fusion(out_s1, out_s2, out_s3, attention)
         return [out_s3, out_s2, out_s1]
@@ -143,7 +144,6 @@ class RTStereoNet(nn.Module):
         self.feature_extraction = feature_extraction()
         self.maxdisp = maxdisp
         self.volume_postprocess = []
-
         layer_setting = [8, 4, 4]
         for i in range(3):
             net3d = post_3dconvs(3, layer_setting[i])
@@ -183,12 +183,14 @@ class RTStereoNet(nn.Module):
         if x.is_cuda:
             vgrid = grid.cuda()
         # vgrid = grid
-        vgrid[:, :1, :, :] = vgrid[:, :1, :, :] - disp  # 第二维第一个, 也就是xx, 减去disp
+        # 第二维第一个, 也就是xx, 减去disp(disp的值代表了视差,x方向的位移)
+        #? 右图向左移
+        vgrid[:, :1, :, :] = vgrid[:, :1, :, :] - disp
 
         # scale grid to [-1,1]
         vgrid[:, 0, :, :] = 2.0 * vgrid[:, 0, :, :] / max(W - 1, 1) - 1.0
         vgrid[:, 1, :, :] = 2.0 * vgrid[:, 1, :, :] / max(H - 1, 1) - 1.0
-        # ! 这里实现了什么? 与BGNet的区别是什么?
+        # ?与BGNet的区别是什么: 右图按照disp向左移
         vgrid = vgrid.permute(0, 2, 3, 1)  # [B, H, W, 2]
         output = nn.functional.grid_sample(x, vgrid)
         return output
@@ -263,7 +265,7 @@ class RTStereoNet(nn.Module):
                 # 残差, 所以范围是-2到3
                 pred_low_res = disparityregression2(-2, 3, stride=1)(F.softmax(cost, dim=1))
                 pred_low_res = pred_low_res * img_size[2] / pred_low_res.size(2)
-                # disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
+                # disp_up = F.upsample(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')               
                 disp_up = F.interpolate(pred_low_res, (img_size[2], img_size[3]), mode='bilinear')
                 pred.append(disp_up + pred[scale - 1])  #
         if self.training:
@@ -280,4 +282,25 @@ class disparityregression2(nn.Module):
 
     def forward(self, x):
         out = torch.sum(x * self.disp, 1, keepdim=True)
+        return out
+
+class MultiheadSelfAttention(nn.Module):
+    def __init__(self, channels, num_heads):
+        super().__init__()
+        self.channels = channels
+        self.num_heads = num_heads
+        self.query = nn.Conv2d(channels, channels // num_heads, kernel_size=1)
+        self.key = nn.Conv2d(channels, channels // num_heads, kernel_size=1)
+        self.value = nn.Conv2d(channels, channels, kernel_size=1)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x):
+        batch_size, _, height, width = x.size()
+        q = self.query(x).view(batch_size, self.num_heads, height * width, -1)
+        k = self.key(x).view(batch_size, self.num_heads, height * width, -1)
+        v = self.value(x).view(batch_size, self.num_heads, height * width, -1)
+
+        attn = self.softmax((q @ k.transpose(-2, -1)) / (self.channels // self.num_heads) ** 0.5)
+        out = (attn @ v).transpose(1, 2).contiguous().view(batch_size, -1, height, width)
+
         return out
